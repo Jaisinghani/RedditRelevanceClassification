@@ -121,7 +121,7 @@ SENT_EMBEDDING_DIM = 200
 RNG_SEED = 13371447
 OPTIMIZER = 'adam'
 MAX_NB_WORDS = 2000000
-REDDIT_DATA_FILE = 'reddit_test_data.txt'
+REDDIT_DATA_FILE = 'reddit_test_data_excel.txt'
 
 def readTestFile():
     sentence1 = []

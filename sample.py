@@ -73,13 +73,12 @@ sentence2 = []
 
 is_relevant = []
 c = 0
-with open('' + "reddit_test_data_csvformat.csv") as csvfile:
+with open('' + "reddit_test_data_excel.txt") as csvfile:
     reader = csv.DictReader(csvfile, delimiter='\t')
+    i =0
     for row in reader:
-        sentence1.append(text_to_wordlist(row['sentence1'], remove_stopwords=True, stem_words=True))
-        sentence2.append(text_to_wordlist(row['sentence2'], remove_stopwords=True, stem_words=True))
-        is_relevant.append(row['is_relevant'])
-        print("sentence1 :", sentence1)
-        print("sentence2 :", sentence2)
-        print("is_relevant :", is_relevant)
-
+        print("sentence 1:", text_to_wordlist(row['sentence1'], remove_stopwords=True, stem_words=True))
+        print("sentence2 :",text_to_wordlist(row['sentence2'], remove_stopwords=True, stem_words=True))
+        print("row['is_relevant'] :", row['is_relevant'])
+        i= i+1
+    print("i: ", i)

@@ -25,7 +25,7 @@ import pickle
 
 nltk.download('stopwords')
 DATASETS_DIR = ''
-REDDIT_DATA_FILE = 'reddit_test_data.txt'
+REDDIT_DATA_FILE = 'reddit_test_data_excel.txt'
 MAX_NB_WORDS = 2000000
 MAX_SEQUENCE_LENGTH = 30
 MODEL_WEIGHTS_FILE = 'model_pairs_weights.h5.bilstm.withattention'
