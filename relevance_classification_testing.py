@@ -1,27 +1,15 @@
 from __future__ import print_function
-import numpy as np
-import sys, csv, datetime, time, json
-from zipfile import ZipFile
-from os.path import expanduser, exists
-from keras.preprocessing.text import Tokenizer
-from keras.preprocessing.sequence import pad_sequences
-from keras.models import Model
-from keras.layers import * #Dot, Input, Bidirectional, GRU,LSTM, dot, Flatten, Dense, Reshape, add, Dropout, BatchNormalization, concatenate, Lambda, Permute, Concatenate, Multiply
-from keras.activations import softmax
-from keras.layers.embeddings import Embedding
-from keras.regularizers import l2
-from keras.callbacks import Callback, ModelCheckpoint
-from keras.utils.data_utils import get_file
+
+import csv
+import re
+
+import nltk
 from keras import backend as K
-from sklearn.model_selection import train_test_split
+from keras.models import model_from_json
+from keras.preprocessing.sequence import pad_sequences
 from nltk.corpus import stopwords
 from nltk.stem import SnowballStemmer
-import re
-from string import punctuation
-import nltk
-from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score
-from keras.models import model_from_json
-import pickle
+from numpy import *
 
 nltk.download('stopwords')
 DATASETS_DIR = ''
@@ -30,11 +18,11 @@ MAX_NB_WORDS = 2000000
 MAX_SEQUENCE_LENGTH = 30
 MODEL_WEIGHTS_FILE = 'model_pairs_weights.h5.bilstm.withattention'
 
-
 def f1(y_true, y_pred):
     def recall(y_true, y_pred):
         true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
         possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
+        print("true :", true_positives)
         recall = true_positives / (possible_positives + K.epsilon())
         return recall
 
@@ -44,22 +32,72 @@ def f1(y_true, y_pred):
         precision = true_positives / (predicted_positives + K.epsilon())
         return precision
 
+    # def confusionmatrix(y_pred, y_true):
+    #     row = {}
+    #     for i in range(len(y_true)):
+    #         x = str(y_true[i]) + str(y_pred[i])
+    #         key = "group_{0}".format(x)
+    #         if key in row:
+    #             row["group_{0}".format(x)] = row["group_{0}".format(x)] + 1
+    #         else:
+    #             row["group_{0}".format(x)] = 1
+    #
+    #     labelrows = []
+    #     for x in range(0, 2):
+    #         for y in range(0, 2):
+    #             j = str(x) + str(y)
+    #             p = "group_{0}".format(j)
+    #             if p in row:
+    #                 labelrows.append(row["group_{0}".format(j)])
+    #             else:
+    #                 labelrows.append(0)
+    #
+    #     cm = reshape(labelrows, (2, 2))
+    #     true_positive = cm[1][1]
+    #     false_positive = cm[0][1]
+    #     true_negative = cm[0][0]
+    #     false_negative = cm[1][0]
+    #     return true_positive, false_positive, true_negative, false_negative
+    #
+    # true_positive, false_positive, true_negative, false_negative = confusionmatrix(y_pred, y_true)
+    #
+    # precision = round(float(true_positive / (true_positive + false_positive)), 5)
+    #
+    # recall = round(float(true_positive / (true_positive + false_negative)), 5)
+    #
+    # tpr = round(float(true_positive / (true_positive + false_negative)), 5)
+    #
+    # fpr = round(float(false_positive / (true_negative + false_positive)), 5)
+    #
+    # tnr = round(float(true_negative / (true_negative + false_positive)), 5)
+    #
+    # fnr = round(float(false_negative / (true_positive + false_negative)), 5)
+    #
+    # print("precision :", precision)
+    # print("recall :", recall)
+    # print("True positive rate  :", tpr)
+    # print("True negative rate  :", tnr)
+    # print("False positive rate  :", fpr)
+    # print("False negative rate  :", fnr)
+    #
+    # return (precision, recall, tpr, fpr, tnr, fnr)
+
     precision = precision(y_true, y_pred)
     recall = recall(y_true, y_pred)
     return 2 * ((precision * recall) / (precision + recall))
 
 
-def text_to_wordlist(text, remove_stopwords=False, stem_words=False):
-    # text = unicode(text, "utf-8")
+def cleanup(text, removeStopwords=False, stemWords=False):
+
     text = text.lower().split()
-    # Optionally, remove stop words
-    if remove_stopwords:
+
+    if removeStopwords:
         stops = set(stopwords.words("english"))
         text = [w for w in text if not w in stops]
 
     text = " ".join(text)
 
-    # Clean the text
+
     text = re.sub(r"[^A-Za-z0-9^,!.\/'+-=]", " ", text)
     text = re.sub(r"what's", "what is ", text)
     text = re.sub(r"\'s", " ", text)
@@ -91,7 +129,7 @@ def text_to_wordlist(text, remove_stopwords=False, stem_words=False):
     text = re.sub(r"\s{2,}", " ", text)
 
     # Optionally, shorten words to their stems
-    if stem_words:
+    if stemWords:
         text = text.split()
         stemmer = SnowballStemmer('english')
         stemmed_words = [stemmer.stem(word) for word in text]
@@ -109,15 +147,15 @@ with open(DATASETS_DIR + REDDIT_DATA_FILE) as csvfile:
     reader = csv.DictReader(csvfile, delimiter='\t')
     for row in reader:
         print(row.keys())
-        sentence1.append(text_to_wordlist(row['sentence1'], remove_stopwords=True, stem_words=True))
-        sentence2.append(text_to_wordlist(row['sentence2'], remove_stopwords=True, stem_words=True))
+        sentence1.append(cleanup(row['sentence1'], removeStopwords=True, stemWords=True))
+        sentence2.append(cleanup(row['sentence2'], removeStopwords=True, stemWords=True))
         is_relevant.append(row['is_relevant'])
 
 print('data pairs: %d' % len(sentence1))
 
 
 
-# Build tokenized word index
+
 sentences = sentence1 + sentence2
 
 # loading
@@ -129,17 +167,17 @@ sentence1_word_sequences = tokenizer.texts_to_sequences(sentence1)
 sentence2_word_sequences = tokenizer.texts_to_sequences(sentence2)
 
 word_index = tokenizer.word_index
-#print("word_index :", word_index)
+
 
 print("Words in index: %d" % len(word_index))
 
-q1_data = pad_sequences(sentence1_word_sequences, maxlen=MAX_SEQUENCE_LENGTH)
-# print("q1_data :",q1_data)
-q2_data = pad_sequences(sentence2_word_sequences, maxlen=MAX_SEQUENCE_LENGTH)
-# print("q2_data :", q2_data)
+c1_data = pad_sequences(sentence1_word_sequences, maxlen=MAX_SEQUENCE_LENGTH)
+
+c2_data = pad_sequences(sentence2_word_sequences, maxlen=MAX_SEQUENCE_LENGTH)
+
 labels = np.array(is_relevant, dtype=int)
-print('Shape of sentence1 data tensor:', q1_data.shape)
-print('Shape of sentence2 data tensor:', q2_data.shape)
+print('Shape of sentence1 data tensor:', c1_data.shape)
+print('Shape of sentence2 data tensor:', c2_data.shape)
 print('Shape of label tensor:', labels.shape)
 
 # load json and create model
@@ -151,11 +189,28 @@ loaded_model = model_from_json(loaded_model_json)
 loaded_model.load_weights("model.h5")
 print("Loaded model from disk")
 
-# evaluate loaded model on test data
-loaded_model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy', f1])
-# Evaluate the model with best validation accuracy on the test partition
 
-loss, accuracy, f1 = loaded_model.evaluate([q1_data, q2_data], labels, verbose=0)
-print(loaded_model.evaluate([q1_data, q2_data], labels, verbose=0))
+loaded_model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy', f1])
+
+
+loss, accuracy, f1 = loaded_model.evaluate([c1_data, c2_data], labels, verbose=0)
+print(loaded_model.evaluate([c1_data, c2_data], labels, verbose=0))
 print('Test loss = {0:.4f}, test accuracy = {1:.4f}, F1 score = {1:.4f}'.format(loss, accuracy, f1))
 
+
+
+def CosineSimilarity(vector, otherPhraseVec):
+		cosine_similarity = np.dot(vector, otherPhraseVec) / (np.linalg.norm(vector) * np.linalg.norm(otherPhraseVec))
+		try:
+			if math.isnan(cosine_similarity):
+				cosine_similarity=0
+		except:
+			cosine_similarity=0
+		return cosine_similarity
+
+similarityScores = []
+print(type(c1_data))
+print(c1_data.shape)
+for i in range(len(c1_data)):
+    sim = CosineSimilarity(c1_data[i], c2_data[i])
+    similarityScores.append(sim)
